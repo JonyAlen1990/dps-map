@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Карта ДПС/ГАИ</title>
-    <!-- ВАЖНО: Используйте HTTPS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * {
@@ -18,6 +17,7 @@
             background-color: #1a1a1a;
             color: #fff;
             padding: 20px;
+            min-height: 100vh;
         }
         
         .container {
@@ -52,7 +52,7 @@
             overflow: hidden;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
             margin-bottom: 20px;
-            background: #2a2a2a; /* Фон если карта не загрузится */
+            background: #2a2a2a;
         }
         
         #map {
@@ -62,27 +62,25 @@
         
         .controls {
             display: flex;
-            justify-content: space-between;
+            gap: 10px;
             margin-bottom: 20px;
             flex-wrap: wrap;
         }
         
         .btn {
-            padding: 12px 25px;
+            padding: 12px 20px;
             border: none;
-            border-radius: 50px;
+            border-radius: 8px;
             cursor: pointer;
             font-weight: bold;
-            transition: all 0.3s ease;
-            margin: 5px;
             background: linear-gradient(90deg, #ff7e00, #ff0000);
             color: white;
+            flex: 1;
+            min-width: 150px;
         }
         
         .btn:hover {
             background: linear-gradient(90deg, #ff8c1a, #ff1a1a);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 10px rgba(255, 126, 0, 0.4);
         }
         
         .legend {
@@ -108,49 +106,7 @@
             height: 20px;
             border-radius: 50%;
             margin-right: 10px;
-        }
-        
-        .reports {
-            background-color: #2d2d2d;
-            padding: 20px;
-            border-radius: 10px;
-        }
-        
-        .reports h3 {
-            margin-bottom: 15px;
-            color: #ff7e00;
-        }
-        
-        .report {
-            background-color: #3d3d3d;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-        }
-        
-        .report-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-            font-weight: bold;
-        }
-        
-        .report-type {
-            color: #ff7e00;
-        }
-        
-        .report-time {
-            color: #aaa;
-            font-size: 0.9rem;
-        }
-        
-        .report-location {
-            color: #ddd;
-            margin-bottom: 5px;
-        }
-        
-        .report-description {
-            color: #bbb;
+            border: 2px solid white;
         }
         
         .loading {
@@ -158,10 +114,20 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            color: white;
             text-align: center;
+            color: white;
+            z-index: 1000;
         }
         
+        .error {
+            color: #ff4444;
+            background: rgba(255, 68, 68, 0.1);
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border: 1px solid #ff4444;
+        }
+
         @media (max-width: 768px) {
             .controls {
                 flex-direction: column;
@@ -169,7 +135,6 @@
             
             .btn {
                 width: 100%;
-                margin-bottom: 10px;
             }
         }
     </style>
@@ -205,119 +170,101 @@
         
         <div class="map-container">
             <div id="map">
-                <div class="loading">
+                <div class="loading" id="loading">
                     <h3>Загрузка карты...</h3>
                     <p>Если карта не загружается, обновите страницу</p>
                 </div>
             </div>
         </div>
-        
-        <div class="reports">
-            <h3>Последние сообщения от участников</h3>
-            <div class="report">
-                <div class="report-header">
-                    <span class="report-type">Пост ДПС</span>
-                    <span class="report-time">10 минут назад</span>
-                </div>
-                <div class="report-location">ул. Ленина, 125</div>
-                <div class="report-description">ДПС остановились на обочине, проверяют документы</div>
-            </div>
-            <div class="report">
-                <div class="report-header">
-                    <span class="report-type">Патруль ГАИ</span>
-                    <span class="report-time">25 минут назад</span>
-                </div>
-                <div class="report-location">перекрёсток Советской и Гагарина</div>
-                <div class="report-description">Экипаж ГАИ на синей Ладе Приоре, стоят за заправкой</div>
-            </div>
-        </div>
+
+        <div id="error-container"></div>
     </div>
 
-    <!-- ВАЖНО: Используйте HTTPS -->
+    <!-- Загрузка Leaflet через CDN -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Инициализация карты
         let map;
         let markers = [];
-        
+        let mapInitialized = false;
+
+        function showError(message) {
+            const errorContainer = document.getElementById('error-container');
+            errorContainer.innerHTML = <div class="error"><strong>Ошибка:</strong> ${message}</div>;
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
         function initMap() {
             try {
-                map = L.map('map').setView([55.7558, 37.6176], 10); // Координаты Москвы
+                console.log('Инициализация карты...');
                 
-                // Добавление слоя карты с HTTPS
+                // Создаем карту
+                map = L.map('map').setView([55.7558, 37.6176], 10);
+                
+                // Добавляем слой OpenStreetMap
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
                     maxZoom: 19
                 }).addTo(map);
                 
-                // Убираем сообщение о загрузке
-                document.querySelector('.loading').style.display = 'none';
+                // Скрываем сообщение о загрузке
+                hideLoading();
+                mapInitialized = true;
                 
-                // Добавляем несколько тестовых маркеров
-                addRandomMarkers();
+                console.log('Карта успешно загружена!');
+                
+                // Добавляем обработчик кликов
+                map.on('click', function(e) {
+                    if (confirm('Добавить метку ДПС/ГАИ в этом месте?')) {
+                        addMarker(e.latlng.lat, e.latlng.lng);
+                    }
+                });
                 
             } catch (error) {
-                console.error('Ошибка загрузки карты:', error);
-                document.querySelector('.loading').innerHTML = 
-                    '<h3>Ошибка загрузки карты</h3><p>Попробуйте обновить страницу</p>';
+                console.error('Ошибка инициализации карты:', error);
+                showError('Не удалось загрузить карту. Попробуйте обновить страницу.');
+                hideLoading();
             }
         }
-        
-        // Функция для добавления маркера
+
         function addMarker(lat, lng, type = 'active') {
-            let color;
-            let title;
+            if (!mapInitialized) return;
+            
+            let color, title;
             
             switch(type) {
-                case 'active':
-                    color = '#ff0000';
-                    title = 'Активный пост ДПС/ГАИ';
-                    break;
-                case 'patrol':
-                    color = '#ff7e00';
-                    title = 'Патруль ДПС/ГАИ';
-                    break;
-                case 'old':
-                    color = '#ffff00';
-                    title = 'Старая информация о ДПС/ГАИ';
-                    break;
-                default:
-                    color = '#ff0000';
-                    title = 'Пост ДПС/ГАИ';
+                case 'active': color = '#ff0000'; title = 'Активный пост'; break;
+                case 'patrol': color = '#ff7e00'; title = 'Патруль'; break;
+                case 'old': color = '#ffff00'; title = 'Старая информация'; break;
+                default: color = '#ff0000'; title = 'Пост ДПС/ГАИ';
             }
             
             const icon = L.divIcon({
-                className: 'custom-icon',
-                html: <div style="background-color: ${color}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></div>,
+                className: 'custom-marker',
+                html: <div style="background-color: ${color}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 8px rgba(0,0,0,0.5);"></div>,
                 iconSize: [26, 26],
                 iconAnchor: [13, 13]
             });
             
             const marker = L.marker([lat, lng], { icon: icon })
                 .addTo(map)
-                .bindPopup(title);
+                .bindPopup(<strong>${title}</strong><br>Широта: ${lat.toFixed(4)}<br>Долгота: ${lng.toFixed(4)});
             
             markers.push(marker);
         }
-        
-        function centerMap() {
-            if (map) {
-                map.setView([55.7558, 37.6176], 10);
-            }
-        }
-        
-        function clearMarkers() {
-            markers.forEach(marker => map.removeLayer(marker));
-            markers = [];
-        }
-        
+
         function addRandomMarkers() {
-            if (!map) return;
+            if (!mapInitialized) {
+                showError('Карта еще не загрузилась');
+                return;
+            }
             
             const baseLat = 55.7558;
             const baseLng = 37.6176;
             
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < 3; i++) {
                 const lat = baseLat + (Math.random() - 0.5) * 0.1;
                 const lng = baseLng + (Math.random() - 0.5) * 0.1;
                 const types = ['active', 'patrol', 'old'];
@@ -326,23 +273,48 @@
                 addMarker(lat, lng, type);
             }
         }
-        
-        // Инициализируем карту после загрузки страницы
-        window.onload = function() {
+
+        function centerMap() {
+            if (mapInitialized) {
+                map.setView([55.7558, 37.6176], 10);
+            } else {
+                showError('Карта еще не загрузилась');
+            }
+        }
+
+        function clearMarkers() {
+            if (!mapInitialized) return;
+            
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+        }
+
+        // Загружаем карту когда страница полностью загрузится
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM загружен, инициализируем карту...');
+            
             // Даем время на загрузку Leaflet
-            setTimeout(initMap, 100);
-        };
-        
-        // Обработчик клика по карте
-        document.getElementById('map').addEventListener('click', function(e) {
-            if (e.target.id === 'map') {
-                const confirmed = confirm('Добавить метку ДПС/ГАИ в этом месте?');
-                if (confirmed && map) {
-                    const latlng = map.mouseEventToLatLng(e);
-                    addMarker(latlng.lat, latlng.lng);
-                }
+            if (typeof L !== 'undefined') {
+                initMap();
+            } else {
+                // Если Leaflet не загрузился через 3 секунды
+                setTimeout(function() {
+                    if (typeof L === 'undefined') {
+                        showError('Не удалось загрузить библиотеку карт. Проверьте интернет-соединение.');
+                        hideLoading();
+                    } else {
+                        initMap();
+                    }
+                }, 3000);
             }
         });
+
+        // Резервная инициализация через 5 секунд
+        setTimeout(function() {
+            if (!mapInitialized && typeof L !== 'undefined') {
+                initMap();
+            }
+        }, 5000);
     </script>
 </body>
 </html>
