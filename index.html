@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Карта ДПС/ГАИ</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #1a1a1a;
+            color: #fff;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            padding: 20px 0;
+            background: linear-gradient(90deg, #ff7e00, #ff0000);
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(255, 126, 0, 0.3);
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .description {
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+            color: #ddd;
+        }
+        
+        .map-container {
+            position: relative;
+            height: 500px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            margin-bottom: 20px;
+        }
+        
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(90deg, #ff7e00, #ff0000);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(90deg, #ff8c1a, #ff1a1a);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(255, 126, 0, 0.4);
+        }
+        
+        .legend {
+            background-color: #2d2d2d;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .legend h3 {
+            margin-bottom: 10px;
+            color: #ff7e00;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .color-box {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        
+        .reports {
+            background-color: #2d2d2d;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        
+        .reports h3 {
+            margin-bottom: 15px;
+            color: #ff7e00;
+        }
+        
+        .report {
+            background-color: #3d3d3d;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .report-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .report-type {
+            color: #ff7e00;
+        }
+        
+        .report-time {
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+        
+        .report-location {
+            color: #ddd;
+            margin-bottom: 5px;
+        }
+        
+        .report-description {
+            color: #bbb;
+        }
+        
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Карта ДПС/ГАИ</h1>
+            <p class="description">Отмечайте расположение постов ДПС/ГАИ на карте и предупреждайте других участников</p>
+        </header>
+        
+        <div class="controls">
+            <button class="btn btn-primary" onclick="addRandomMarkers()">Добавить тестовые метки</button>
+            <button class="btn btn-primary" onclick="centerMap()">Центрировать карту</button>
+            <button class="btn btn-primary" onclick="clearMarkers()">Очистить все метки</button>
+        </div>
+        
+        <div class="legend">
+            <h3>Легенда карты</h3>
+            <div class="legend-item">
+                <div class="color-box" style="background-color: #ff0000;"></div>
+                <span>Пост ДПС/ГАИ (активный)</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-box" style="background-color: #ff7e00;"></div>
+                <span>Патруль ДПС/ГАИ (недавно)</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-box" style="background-color: #ffff00;"></div>
+                <span>Старая информация (более 1 часа)</span>
+            </div>
+        </div>
+        
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+        
+        <div class="reports">
+            <h3>Последние сообщения от участников</h3>
+            <div class="report">
+                <div class="report-header">
+                    <span class="report-type">Пост ДПС</span>
+                    <span class="report-time">10 минут назад</span>
+                </div>
+                <div class="report-location">ул. Ленина, 125</div>
+                <div class="report-description">ДПС остановились на обочине, проверяют документы</div>
+            </div>
+            <div class="report">
+                <div class="report-header">
+                    <span class="report-type">Патруль ГАИ</span>
+                    <span class="report-time">25 минут назад</span>
+                </div>
+                <div class="report-location">перекрёсток Советской и Гагарина</div>
+                <div class="report-description">Экипаж ГАИ на синей Ладе Приоре, стоят за заправкой</div>
+            </div>
+            <div class="report">
+                <div class="report-header">
+                    <span class="report-type">Мобильный пост</span>
+                    <span class="report-time">45 минут назад</span>
+                </div>
+                <div class="report-location">выезд с Московского шоссе</div>
+                <div class="report-description">Фургон ДПС, проверяют скорость на радар</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        // Инициализация карты
+        const map = L.map('map').setView([53.1950, 50.1000], 12);
+        
+        // Добавление слоя карты (можно использовать различные поставщики)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        
+        // Массив для хранения маркеров
+        let markers = [];
+        
+        // Функция для добавления маркера на карту
+        function addMarker(lat, lng, type = 'active') {
+            let color;
+            let title;
+            
+            switch(type) {
+                case 'active':
+                    color = '#ff0000';
+                    title = 'Активный пост ДПС/ГАИ';
+                    break;
+                case 'patrol':
+                    color = '#ff7e00';
+                    title = 'Патруль ДПС/ГАИ';
+                    break;
+                case 'old':
+                    color = '#ffff00';
+                    title = 'Старая информация о ДПС/ГАИ';
+                    break;
+                default:
+                    color = '#ff0000';
+                    title = 'Пост ДПС/ГАИ';
+            }
+            
+            // Создание иконки с пользовательским цветом
+            const icon = L.divIcon({
+                className: 'custom-icon',
+                html: <div style="background-color: ${color}; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></div>,
+                iconSize: [26, 26],
+                iconAnchor: [13, 13]
+            });
+            
+            // Добавление маркера на карту
+            const marker = L.marker([lat, lng], { icon: icon })
+                .addTo(map)
+                .bindPopup(title);
+            
+            // Сохранение маркера в массиве
+            markers.push(marker);
+        }
+        
+        // Функция для центрирования карты
+        function centerMap() {
+            map.setView([53.1950, 50.1000], 12);
+        }
+        
+        // Функция для очистки всех маркеров
+        function clearMarkers() {
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+        }
+        
+        // Функция для добавления тестовых маркеров
+        function addRandomMarkers() {
+            const baseLat = 53.1950;
+            const baseLng = 50.1000;
+            
+            // Добавление нескольких случайных маркеров
+            for (let i = 0; i < 5; i++) {
+                const lat = baseLat + (Math.random() - 0.5) * 0.1;
+                const lng = baseLng + (Math.random() - 0.5) * 0.1;
+                const types = ['active', 'patrol', 'old'];
+                const type = types[Math.floor(Math.random() * types.length)];
+                
+                addMarker(lat, lng, type);
+            }
+        }
+        
+        // Обработчик клика по карте для добавления маркеров
+        map.on('click', function(e) {
+            // Можно добавить подтверждение или форму для добавления информации
+            const confirmed = confirm('Добавить метку ДПС/ГАИ в этом месте?');
+            if (confirmed) {
+                addMarker(e.latlng.lat, e.latlng.lng);
+            }
+        });
+        
+        // Добавление нескольких тестовых маркеров при загрузке
+        addRandomMarkers();
+    </script>
+</body>
+</html>
